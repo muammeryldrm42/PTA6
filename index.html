@@ -90,7 +90,7 @@ F or E ........... ENTER / EXIT VEHICLE
 SHIFT  SPRINT   H  HORN   R  RADIO   M  MAP
 P  PAUSE   N  SOUND   G  GRAPHICS   B  BUY
 SHOTS GO WHERE THE CROSSHAIR / CURSOR POINTS
-RIGHT MOUSE or X  AIM     R  RELOAD (ON FOOT)
+RIGHT MOUSE or X  AIM  (Z KEEPS AIM ON)   R  RELOAD
 T  PHONE   C  JUMP   HELICOPTER: SPACE UP / SHIFT DOWN
 COPS ONLY COME AFTER YOU IF THEY SEE THE CRIME
 [ and ]  MOUSE SENSITIVITY     M  MAP + WAYPOINTS</pre>
@@ -247,7 +247,7 @@ genMap();drawMap();
 
 // ---------------- Input & sound ----------------
 const K={},pressed={};let TOUCH=false,mouseDown=false,mouseR=false,mX=innerWidth/2,mY=innerHeight/2;
-addEventListener('mousemove',e=>{mX=e.clientX;mY=e.clientY});
+addEventListener('mousemove',e=>{mX=e.clientX;mY=e.clientY;if(TOUCH&&!(e.sourceCapabilities&&e.sourceCapabilities.firesTouchEvents)&&(e.movementX||e.movementY)){TOUCH=false;$('touch').style.display='none'}});
 addEventListener('contextmenu',e=>e.preventDefault());
 addEventListener('keydown',e=>{if(!e.repeat)pressed[e.code]=true;K[e.code]=true;if(/Arrow|Space/.test(e.code))e.preventDefault();if(e.key.length===1&&!e.repeat)cheat(e.key)});
 addEventListener('keyup',e=>{K[e.code]=false});
@@ -678,7 +678,8 @@ function update(dt){
     }
     else{
       let f=fw,s=sd;if(!locked){camA+=s*2.2*dt;s=0;const ex=mX/innerWidth;if(ex<.07)camA-=1.7*dt;else if(ex>.93)camA+=1.7*dt}
-      p.aim=p.wep>0&&!p.swim&&(mouseR||!!K.KeyX);
+      if(pressed.KeyZ){S.aimLock=!S.aimLock;msg(S.aimLock?'AIM LOCK ON - Z TO RELEASE':'AIM LOCK OFF',2)}
+      p.aim=!p.swim&&(mouseR||!!K.KeyX||!!S.aimLock);
       const hit=(x,y)=>p.alt>0?(x<4||y<4||x>WPX-4||y>WPX-4||blockH(x,y)>p.alt+.3):(dryAt(x-3,y-3)||dryAt(x+3,y-3)||dryAt(x-3,y+3)||dryAt(x+3,y+3)),run=K.ShiftLeft||K.ShiftRight;
       if(p.alt>0){const fl=blockH(p.x,p.y);if(p.alt>fl)p.alt=Math.max(fl,p.alt-dt*7)}
       if(pressed.KeyC&&!p.swim&&!p.jv&&!p.jy&&!(p.alt>blockH(p.x,p.y))){p.jv=5.5;beep(260,.06,'square',.02,380)}
@@ -694,7 +695,7 @@ function update(dt){
         if(d<5&&d>.01){const nx=q.x+dx/d*(5-d),ny=q.y+dy/d*(5-d);if(!solidAt(nx,ny)){q.x=nx;q.y=ny}
           if(run&&(f||s)&&q.st<2&&!(q.sayT>now)){q.sayT=now+4;say(q,pick(['HEY!','WATCH IT!','EXCUSE ME?!','MOVE, IDIOT!']))}}
       }
-      if(p.aim){
+      if(p.aim&&p.wep>0){
         let bt=null,bd=75;
         for(const q of S.peds){if(q.st===2||q.st===3||q.robbed)continue;const d=dist(q,p);if(d<bd&&Math.abs(angDiff(Math.atan2(q.y-p.y,q.x-p.x),p.a))<.14&&los(p.x,p.y,q.x,q.y)){bd=d;bt=q}}
         if(bt){
@@ -1147,7 +1148,7 @@ function drawHUD(){
   H.php.style.width=clamp(p.hp,0,100)+'%';H.par.style.width=clamp(p.armor,0,100)+'%';
   setT(H.wep,p.wep?WPN[p.wep].n+' '+(p.rl>0?'RELOADING':p.clip[p.wep]+' / '+p.ammo[p.wep]):'FIST');
   H.flash.style.opacity=Math.max(S.flash>0?S.flash:0,!p.car&&p.hp<30?.1+.06*Math.sin(now*6):0);
-  H.cross.style.display=p.wep&&!p.swim?'block':'none';{const lk=TOUCH||document.pointerLockElement===cv;H.cross.style.left=lk?'50%':mX+'px';H.cross.style.top=lk?'50%':mY+'px'}H.cross.style.borderColor=S.hitM>0?'#ff3030':'#fff';H.cross.style.transform=p.aim?'scale(.8)':'scale(1.6)';
+  H.cross.style.display=!p.swim?'block':'none';{const lk=TOUCH||document.pointerLockElement===cv;H.cross.style.left=lk?'50%':mX+'px';H.cross.style.top=lk?'50%':mY+'px'}H.cross.style.borderColor=S.hitM>0?'#ff3030':'#fff';H.cross.style.transform=p.aim?'scale(.8)':'scale(1.6)';
   H.w.forEach((el,i)=>{const on=i<S.wanted,bl=S.evade>0&&(now*4|0)%2;el.style.background=on&&!bl?((now*6+i|0)%2?'#ff3838':'#3d6bff'):'#3a3a44';el.style.borderBottomColor=on?'#ddd':'#555'});
   H.bust.style.display=S.bust>0?'block':'none';H.bustB.style.width=Math.min(100,S.bust/2.2*100)+'%';
   if(p.car){
@@ -1208,7 +1209,7 @@ $('title').addEventListener('click',startGame);
 $('bigmap').addEventListener('click',e=>{const r=e.target.getBoundingClientRect();S.wp={x:clamp((e.clientX-r.left)/r.width,0,1)*WPX,y:clamp((e.clientY-r.top)/r.height,0,1)*WPX};S.rtT=0;S.mapOn=false;msg('WAYPOINT SET',1.5);lockMouse()});
 $('bigmap').addEventListener('contextmenu',()=>{S.wp=null;msg('WAYPOINT CLEARED',1.5)});
 addEventListener('mousemove',e=>{if(document.pointerLockElement!==cv||mode!=='play')return;camA+=e.movementX*.0028*SENS;camP=clamp(camP+e.movementY*.002*SENS,.04,1.25);freeLook=2});
-addEventListener('mousedown',e=>{if(e.button===2)mouseR=true;else if(e.button===0&&mode==='play'&&!TOUCH){pressed.Punch=true;mouseDown=true}});
+addEventListener('mousedown',e=>{if(e.button===2)mouseR=true;else if(e.button===0&&mode==='play'&&!(e.sourceCapabilities&&e.sourceCapabilities.firesTouchEvents)){pressed.Punch=true;mouseDown=true}});
 addEventListener('mouseup',e=>{if(e.button===2)mouseR=false;else mouseDown=false});
 addEventListener('wheel',()=>{pressed.Wheel=true});
 let last=0,fpsA=60,lowT=0,autoQ=0;
