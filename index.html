@@ -48,10 +48,13 @@ html,body{margin:0;height:100%;background:#0b0b12;overflow:hidden;font-family:"P
 .ov pre{font-family:inherit;font-size:11px;line-height:2;color:#c8c8d8;margin-top:22px}
 @keyframes bl{50%{opacity:0}}
 #hud{display:none}
+#buy{position:fixed;right:16px;top:50%;transform:translateY(-50%);z-index:6;background:#ffd23a;color:#111;font-family:inherit;font-size:12px;padding:12px 14px;border:3px solid #000;box-shadow:4px 4px 0 #ff3f8e;text-decoration:none;cursor:pointer}
+#buy:hover{background:#fff}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
+<a id="buy" href="https://dexscreener.com/solana/hbhmjse6dyuvvsptzzzcxq5izznxeaxmvug8xde56pay" target="_blank" rel="noopener noreferrer">PTA6 BUY</a>
 <div id="hud">
   <div class="h" id="money">$0</div><div class="h" id="clock">10:00</div>
   <div class="h" id="bars"><div id="hpb"><b></b></div><div id="arb"><b></b></div></div>
@@ -1327,7 +1330,7 @@ $('title').addEventListener('click',startGame);
 $('bigmap').addEventListener('click',e=>{const r=e.target.getBoundingClientRect();S.wp={x:clamp((e.clientX-r.left)/r.width,0,1)*WPX,y:clamp((e.clientY-r.top)/r.height,0,1)*WPX};S.rtT=0;S.mapOn=false;msg('WAYPOINT SET',1.5);lockMouse()});
 $('bigmap').addEventListener('contextmenu',()=>{S.wp=null;msg('WAYPOINT CLEARED',1.5)});
 addEventListener('mousemove',e=>{if(document.pointerLockElement!==cv||mode!=='play')return;camA+=e.movementX*.0028*SENS;camP=clamp(camP+e.movementY*.002*SENS,.04,1.25);freeLook=2});
-addEventListener('mousedown',e=>{if(e.button===2)mouseR=true;else if(e.button===0&&mode==='play'&&!(e.sourceCapabilities&&e.sourceCapabilities.firesTouchEvents)){pressed.Punch=true;mouseDown=true}});
+addEventListener('mousedown',e=>{if(e.target&&e.target.id==='buy')return;if(e.button===2)mouseR=true;else if(e.button===0&&mode==='play'&&!(e.sourceCapabilities&&e.sourceCapabilities.firesTouchEvents)){pressed.Punch=true;mouseDown=true}});
 addEventListener('mouseup',e=>{if(e.button===2)mouseR=false;else mouseDown=false});
 addEventListener('wheel',()=>{pressed.Wheel=true});
 let last=0,fpsA=60,lowT=0,autoQ=0;
