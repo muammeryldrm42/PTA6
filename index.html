@@ -984,52 +984,53 @@ function update(dt){
 }
 
 // ---------------- 3D scene ----------------
-const renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true});renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+const renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true,powerPreference:'high-performance'});renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.sortObjects=true;
 const HDR=renderer.capabilities.isWebGL2&&!!renderer.extensions.get('EXT_color_buffer_float');
-const ENV=(()=>{const fs=[];for(let i=0;i<6;i++){const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d');
-  if(i===2){x.fillStyle='#3f8fe0';x.fillRect(0,0,64,64)}else if(i===3){x.fillStyle='#3a3a40';x.fillRect(0,0,64,64)}
-  else{const g=x.createLinearGradient(0,0,0,64);g.addColorStop(0,'#3f8fe0');g.addColorStop(.5,'#d4e9f8');g.addColorStop(.53,'#6a7068');g.addColorStop(1,'#3a3a40');x.fillStyle=g;x.fillRect(0,0,64,64)}
+const ENV=(()=>{const fs=[];for(let i=0;i<6;i++){const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d');
+  if(i===2){const g=x.createRadialGradient(64,64,8,64,64,70);g.addColorStop(0,'#9fd4ff');g.addColorStop(1,'#2a6fb8');x.fillStyle=g;x.fillRect(0,0,128,128)}
+  else if(i===3){x.fillStyle='#2a2c32';x.fillRect(0,0,128,128);x.fillStyle='#3a3e46';for(let n=0;n<40;n++)x.fillRect((n*37)%128,(n*53)%40,18,8)}
+  else{const g=x.createLinearGradient(0,0,0,128);g.addColorStop(0,'#4a9ae0');g.addColorStop(.42,'#cfe8ff');g.addColorStop(.5,'#ffe2b0');g.addColorStop(.56,'#6a7468');g.addColorStop(1,'#2e3238');x.fillStyle=g;x.fillRect(0,0,128,128);x.fillStyle='rgba(255,255,255,.08)';for(let n=0;n<12;n++){x.beginPath();x.arc((n*47)%128,28+(n%5)*6,10+(n%4)*4,0,7);x.fill()}}
   fs.push(c)}const t=new THREE.CubeTexture(fs);t.needsUpdate=true;return t})();
-const PR={off:!renderer.capabilities.isWebGL2,w:0,h:0,px:new THREE.Vector2()},pScene=new THREE.Scene(),pCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+const PR={off:!renderer.capabilities.isWebGL2,w:0,h:0,px:new THREE.Vector2(),grade:new THREE.Color(1,1,1),sunUV:new THREE.Vector2(-1,-1)},pScene=new THREE.Scene(),pCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
 const PVS='varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}';
 PR.blur=new THREE.ShaderMaterial({depthTest:false,depthWrite:false,uniforms:{t:{value:null},px:{value:PR.px},dir:{value:new THREE.Vector2(1,0)},thr:{value:1}},vertexShader:PVS,
-  fragmentShader:'uniform sampler2D t;uniform vec2 px;uniform vec2 dir;uniform float thr;varying vec2 vUv;void main(){vec3 s=vec3(0.);for(int i=-4;i<=4;i++){vec3 c=texture2D(t,vUv+dir*px*float(i)*1.4).rgb;if(thr>0.){float l=max(c.r,max(c.g,c.b));c*=smoothstep(thr,thr+.5,l);}s+=c*exp(-float(i*i)/8.);}gl_FragColor=vec4(s/4.898,1.);}'});
-PR.fin=new THREE.ShaderMaterial({depthTest:false,depthWrite:false,uniforms:{t:{value:null},b:{value:null},time:{value:0}},vertexShader:PVS,
-  fragmentShader:'uniform sampler2D t;uniform sampler2D b;uniform float time;varying vec2 vUv;void main(){vec3 c=texture2D(t,vUv).rgb+texture2D(b,vUv).rgb*.85;vec3 k=max(c-.8,0.);c=min(c,.8)+.2*k/(.2+k);float l=dot(c,vec3(.299,.587,.114));c=mix(vec3(l),c,1.14);c=(c-.5)*1.07+.5;vec2 d=vUv-.5;c*=1.-dot(d,d)*.5;c+=(fract(sin(dot(vUv*vec2(1920.,1080.)+time,vec2(12.9898,78.233)))*43758.5453)-.5)*.012;gl_FragColor=vec4(max(c,0.),1.);}'});
+  fragmentShader:'uniform sampler2D t;uniform vec2 px;uniform vec2 dir;uniform float thr;varying vec2 vUv;void main(){vec3 s=vec3(0.);float w=0.;for(int i=-6;i<=6;i++){float k=exp(-float(i*i)/14.);vec3 c=texture2D(t,vUv+dir*px*float(i)*1.55).rgb;if(thr>0.){float l=max(c.r,max(c.g,c.b));c*=smoothstep(thr,thr+.55,l);}s+=c*k;w+=k;}gl_FragColor=vec4(s/w,1.);}'});
+PR.fin=new THREE.ShaderMaterial({depthTest:false,depthWrite:false,uniforms:{t:{value:null},b:{value:null},time:{value:0},rain:{value:0},night:{value:0},speed:{value:0},bloom:{value:.95},grade:{value:PR.grade},sunUV:{value:PR.sunUV}},vertexShader:PVS,
+  fragmentShader:'uniform sampler2D t;uniform sampler2D b;uniform float time;uniform float rain;uniform float night;uniform float speed;uniform float bloom;uniform vec3 grade;uniform vec2 sunUV;varying vec2 vUv;void main(){vec2 uv=vUv;float ca=.0018+speed*.0025+rain*.0012;vec3 c=vec3(texture2D(t,uv+vec2(ca,0.)).r,texture2D(t,uv).g,texture2D(t,uv-vec2(ca,0.)).b);c+=texture2D(b,uv).rgb*bloom;if(sunUV.x>-.2){vec2 d=(sunUV-uv)*.018;float g=0.;for(int i=0;i<10;i++){vec2 p=clamp(uv+d*float(i),0.,1.);vec3 s=texture2D(t,p).rgb;g+=max(s.r,max(s.g,s.b));}c+=vec3(1.,.9,.72)*g*.011*(.85-night*.35);}c=max(c,0.);c=clamp((c*(2.51*c+.03))/(c*(2.43*c+.59)+.14),0.,1.);c*=grade;float l=dot(c,vec3(.2126,.7152,.0722));c=mix(vec3(l),c,1.16);vec2 d2=uv-.5;c*=1.-dot(d2,d2)*(.48+speed*.4);if(rain>.04){float n=fract(sin(dot(floor(uv*vec2(110.,60.)),vec2(12.9,78.2))+floor(time*3.))*43758.5);if(n>.975)c+=vec3(.35,.4,.45)*rain;c+=vec3(.05,.07,.1)*rain*smoothstep(.9,1.,fract(uv.y*10.-time*2.4+uv.x*7.));}c+=(fract(sin(dot(uv*vec2(1919.,1081.)+time,vec2(12.9898,78.233)))*43758.5453)-.5)*.009;gl_FragColor=vec4(max(c,0.),1.);}'});
 const pQuad=new THREE.Mesh(new THREE.PlaneGeometry(2,2),PR.fin);pQuad.frustumCulled=false;pScene.add(pQuad);
 function mkPost(w,h){
   if(PR.main){PR.main.dispose();PR.b1.dispose();PR.b2.dispose()}
   const ty=HDR?THREE.HalfFloatType:THREE.UnsignedByteType,o={minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,type:ty};
-  PR.main=new THREE.WebGLMultisampleRenderTarget(w,h,o);PR.main.samples=4;
+  PR.main=new THREE.WebGLMultisampleRenderTarget(w,h,o);PR.main.samples=HDR?8:4;
   const bw=Math.max(2,w>>2),bh=Math.max(2,h>>2);
   PR.b1=new THREE.WebGLRenderTarget(bw,bh,{minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,type:ty,depthBuffer:false});PR.b2=PR.b1.clone();
   PR.px.set(1/bw,1/bh);PR.w=w;PR.h=h;
 }
-const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(62,1,.3,420);
-const SKY_D=new THREE.Color(0x86c8ee),SKY_N=new THREE.Color(0x0b0d2a),SKY_E=new THREE.Color(0xff8a7a),sky=new THREE.Color();
-scene.fog=new THREE.Fog(0x86c8ee,90,360);
-const RAINC=new THREE.Color(0x59636f),TOP_E=new THREE.Color(0x6a3aa8),NEON=[0xff3fa0,0x3fe0ff,0xffe14a,0xb06aff,0x4aff9a].map(c=>{const m=new THREE.MeshBasicMaterial({color:c});m.userData.c=c;return m}),TOP_D=new THREE.Color(0x2f7fd8),TOP_N=new THREE.Color(0x02030c),sdir=new THREE.Vector3(.5,1,.3).normalize();
-const hemi=new THREE.HemisphereLight(0xffffff,0x555566,.85),sun=new THREE.DirectionalLight(0xfff2d8,.75);
-sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.bias=-.0005;sun.shadow.normalBias=.06;
-{const sc=sun.shadow.camera;sc.left=sc.bottom=-85;sc.right=sc.top=85;sc.near=10;sc.far=420}
-scene.add(hemi,sun,sun.target);
-const headL=new THREE.SpotLight(0xffe9a0,0,70,.55,.6,1);scene.add(headL,headL.target);
-const flashL=new THREE.PointLight(0xffc060,0,40);scene.add(flashL);
-let gfx=1;
-function fit(){const k=gfx?1/Math.min(devicePixelRatio||1,1.5):Math.max(2,Math.round(innerHeight/260));renderer.setSize(Math.ceil(innerWidth/k),Math.ceil(innerHeight/k),false);cv.style.imageRendering=gfx?'auto':'pixelated';camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix()}
-const waterMat=new THREE.ShaderMaterial({uniforms:{t:{value:0},lit:{value:1},fogC:{value:new THREE.Color()},skyC:{value:new THREE.Color()},sunD:{value:new THREE.Vector3(0,1,0)}},
+const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(62,1,.3,520);
+const SKY_D=new THREE.Color(0x7ec4ef),SKY_N=new THREE.Color(0x07091c),SKY_E=new THREE.Color(0xff7a62),sky=new THREE.Color();
+scene.fog=new THREE.FogExp2(0x7ec4ef,.00235);
+const RAINC=new THREE.Color(0x4e5864),TOP_E=new THREE.Color(0x7a3ab8),NEON=[0xff3fa0,0x3fe0ff,0xffe14a,0xb06aff,0x4aff9a].map(c=>{const m=new THREE.MeshBasicMaterial({color:c});m.userData.c=c;return m}),TOP_D=new THREE.Color(0x1f6fd0),TOP_N=new THREE.Color(0x01020a),MID_D=new THREE.Color(0xd7ecff),MID_N=new THREE.Color(0x14182e),MID_E=new THREE.Color(0xffb07a),sdir=new THREE.Vector3(.5,1,.3).normalize();
+const hemi=new THREE.HemisphereLight(0xffffff,0x4a5060,.9),sun=new THREE.DirectionalLight(0xfff2d8,.85),fill=new THREE.DirectionalLight(0xa8c8ff,.18);
+sun.castShadow=true;sun.shadow.mapSize.set(4096,4096);sun.shadow.bias=-.00035;sun.shadow.normalBias=.045;sun.shadow.radius=2.2;
+{const sc=sun.shadow.camera;sc.left=sc.bottom=-95;sc.right=sc.top=95;sc.near=8;sc.far=460}
+fill.position.set(-40,30,-20);scene.add(hemi,sun,sun.target,fill);
+const headL=new THREE.SpotLight(0xffe9a0,0,85,.48,.55,1.1);scene.add(headL,headL.target);
+const cityL=new THREE.PointLight(0xff6ad5,0,180,.8),flashL=new THREE.PointLight(0xffc060,0,55);scene.add(cityL,flashL);
+let gfx=1,groundMat=null,wetPlane=null,moonM=null,beamL=null,beamR=null;
+function fit(){const k=gfx?1/Math.min(devicePixelRatio||1,2):Math.max(2,Math.round(innerHeight/260));renderer.setSize(Math.ceil(innerWidth/k),Math.ceil(innerHeight/k),false);cv.style.imageRendering=gfx?'auto':'pixelated';camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix()}
+const waterMat=new THREE.ShaderMaterial({uniforms:{t:{value:0},lit:{value:1},rain:{value:0},fogC:{value:new THREE.Color()},skyC:{value:new THREE.Color()},sunD:{value:new THREE.Vector3(0,1,0)}},
   vertexShader:'varying vec3 vW;varying float vD;void main(){vec4 w=modelMatrix*vec4(position,1.);vW=w.xyz;vec4 mv=viewMatrix*w;vD=-mv.z;gl_Position=projectionMatrix*mv;}',
-  fragmentShader:'uniform float t;uniform float lit;uniform vec3 fogC;uniform vec3 skyC;uniform vec3 sunD;varying vec3 vW;varying float vD;void main(){vec2 p=vW.xz;float a=p.x*.9+t*1.5,b=p.y*.8-t*1.1,e=(p.x+p.y)*.45+t*.8;float w=sin(a)*sin(b)+.6*sin(e);vec3 n=normalize(vec3(cos(a)*sin(b)*.2+cos(e)*.09,1.,sin(a)*cos(b)*.18+cos(e)*.09));vec3 v=normalize(cameraPosition-vW);float fr=pow(1.-max(dot(v,n),0.),3.);vec3 base=mix(vec3(.04,.2,.48),vec3(.1,.46,.72),.5+.22*w)*lit;vec3 c=mix(base,skyC,fr*.7);float sp=pow(max(dot(reflect(-sunD,n),v),0.),110.);c+=vec3(1.,.95,.8)*sp*3.*lit;float f=smoothstep(90.,360.,vD);gl_FragColor=vec4(mix(c,fogC,f),1.);}'});
-const skyG=new THREE.Group(),skyU={top:{value:new THREE.Color()},bot:{value:new THREE.Color()}};
+  fragmentShader:'uniform float t;uniform float lit;uniform float rain;uniform vec3 fogC;uniform vec3 skyC;uniform vec3 sunD;varying vec3 vW;varying float vD;void main(){vec2 p=vW.xz;float a=p.x*.85+t*1.4,b=p.y*.72-t*1.05,e=(p.x+p.y)*.42+t*.75,f=p.x*1.7-t*2.1,g=p.y*1.5+t*1.6;float w=sin(a)*sin(b)+.55*sin(e)+.28*sin(f)*cos(g)+rain*.18*sin(p.x*4.2+t*5.);vec3 n=normalize(vec3(cos(a)*sin(b)*.28+cos(e)*.12+cos(f)*.08,1.,sin(a)*cos(b)*.24+cos(e)*.1+sin(g)*.08));vec3 v=normalize(cameraPosition-vW);float fr=pow(1.-max(dot(v,n),0.),3.2);vec3 deep=vec3(.015,.09,.28),shallow=vec3(.05,.34,.58),coast=vec3(.18,.55,.62);vec3 base=mix(deep,shallow,.45+.3*w)*lit;base=mix(base,coast,smoothstep(1.2,.1,vW.y)*fr*.35);vec3 c=mix(base,skyC,fr*.78);float sp=pow(max(dot(reflect(-sunD,n),v),0.),160.);c+=vec3(1.,.94,.78)*sp*(3.4+rain)*lit;c+=skyC*pow(fr,2.)* .15;float foam=smoothstep(.55,.95,w)*.25*lit;c+=vec3(.7,.85,.9)*foam;float fog=1.-exp(-vD*.0024);gl_FragColor=vec4(mix(c,fogC,fog),1.);}'});
+const skyG=new THREE.Group(),skyU={top:{value:new THREE.Color()},bot:{value:new THREE.Color()},mid:{value:new THREE.Color()},sunD:{value:new THREE.Vector3()},night:{value:0}};
 const ltNS=new THREE.MeshBasicMaterial({color:0x30e050}),ltEW=new THREE.MeshBasicMaterial({color:0xe03030}),lampMat=new THREE.MeshBasicMaterial({color:0x9a9aa0}),glowMat=new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending});
 let sunM,starM,cloudG;
 addEventListener('resize',fit);fit();
 const mats={};
 const M=(col,k)=>{
   const key=col+(k===2?'p':k?'b':'');if(mats[key])return mats[key];let m;
-  if(k===2)m=new THREE.MeshPhongMaterial({color:col,shininess:90,specular:0x888888,envMap:ENV,combine:THREE.MixOperation,reflectivity:.26});
-  else if(k){m=new THREE.MeshBasicMaterial({color:col});if(HDR)m.color.multiplyScalar(1.7)}
-  else m=col==='#1c2a44'?new THREE.MeshLambertMaterial({color:col,envMap:ENV,combine:THREE.MixOperation,reflectivity:.55}):new THREE.MeshLambertMaterial({color:col});
+  if(k===2)m=new THREE.MeshPhongMaterial({color:col,shininess:140,specular:0xbbbbbb,envMap:ENV,combine:THREE.MixOperation,reflectivity:.38});
+  else if(k){m=new THREE.MeshBasicMaterial({color:col});if(HDR)m.color.multiplyScalar(1.85)}
+  else m=col==='#1c2a44'?new THREE.MeshPhongMaterial({color:col,shininess:180,specular:0xffffff,envMap:ENV,combine:THREE.MixOperation,reflectivity:.72}):new THREE.MeshLambertMaterial({color:col});
   return mats[key]=m;
 };
 const AOM=(()=>{const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d');x.shadowColor='rgba(0,0,0,.95)';x.shadowBlur=9;x.fillStyle='rgba(0,0,0,.5)';x.fillRect(10,10,44,44);
@@ -1080,24 +1081,28 @@ function marker(pt,col,label){
 }
 function buildScene(){
   drawMap();
-  const gt=new THREE.CanvasTexture(mapC);gt.magFilter=THREE.NearestFilter;gt.anisotropy=4;
-  const ground=new THREE.Mesh(new THREE.PlaneGeometry(WM,WM),new THREE.MeshLambertMaterial({map:gt}));
+  const gt=new THREE.CanvasTexture(mapC);gt.magFilter=THREE.NearestFilter;gt.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
+  groundMat=new THREE.MeshPhongMaterial({map:gt,shininess:8,specular:0x222222});
+  const ground=new THREE.Mesh(new THREE.PlaneGeometry(WM,WM),groundMat);
   ground.rotation.x=-PI/2;ground.position.set(WM/2,0,WM/2);ground.receiveShadow=true;scene.add(ground);
-  const sea=new THREE.Mesh(new THREE.PlaneGeometry(4000,4000),waterMat);sea.rotation.x=-PI/2;sea.position.set(WM/2,-.15,WM/2);scene.add(sea);
+  wetPlane=new THREE.Mesh(new THREE.PlaneGeometry(WM,WM),new THREE.MeshPhongMaterial({color:0x1a2430,transparent:true,opacity:0,shininess:220,specular:0xffffff,envMap:ENV,combine:THREE.MixOperation,reflectivity:.55,depthWrite:false}));
+  wetPlane.rotation.x=-PI/2;wetPlane.position.set(WM/2,.04,WM/2);wetPlane.visible=false;scene.add(wetPlane);
+  const sea=new THREE.Mesh(new THREE.PlaneGeometry(4000,4000,1,1),waterMat);sea.rotation.x=-PI/2;sea.position.set(WM/2,-.15,WM/2);scene.add(sea);
   {const wp=[];for(let y=0;y<MH;y++)for(let x=0;x<MW;x++)if(map[y*MW+x]===WATER){const a=x*4,b=y*4;wp.push(a,.05,b,a,.05,b+4,a+4,.05,b,a+4,.05,b,a,.05,b+4,a+4,.05,b+4)}
    const wg=new THREE.BufferGeometry();wg.setAttribute('position',new THREE.Float32BufferAttribute(wp,3));scene.add(new THREE.Mesh(wg,waterMat))}
-  // sky dome, sun, stars, clouds
-  const dome=new THREE.Mesh(new THREE.SphereGeometry(390,20,12),new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,uniforms:skyU,
-    vertexShader:'varying float h;void main(){h=normalize(position).y;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-    fragmentShader:'uniform vec3 top;uniform vec3 bot;varying float h;void main(){gl_FragColor=vec4(mix(bot,top,smoothstep(-.02,.55,h)),1.);}'}));
+  // sky dome, sun, moon, stars, clouds
+  const dome=new THREE.Mesh(new THREE.SphereGeometry(420,32,18),new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,fog:false,uniforms:skyU,
+    vertexShader:'varying float h;varying vec3 vN;void main(){vN=normalize(position);h=vN.y;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+    fragmentShader:'uniform vec3 top;uniform vec3 bot;uniform vec3 mid;uniform vec3 sunD;uniform float night;varying float h;varying vec3 vN;void main(){float hz=smoothstep(-.08,.22,h);vec3 c=mix(bot,mid,smoothstep(-.05,.18,h));c=mix(c,top,smoothstep(.12,.72,h));float sd=max(dot(vN,normalize(sunD)),0.);c+=vec3(1.,.78,.45)*pow(sd,80.)*(1.2-night);c+=vec3(1.,.9,.7)*pow(sd,8.)*.35*(1.-night*.7);c+=vec3(.55,.35,.9)*pow(1.-abs(h-.08),18.)*night*.25;gl_FragColor=vec4(c,1.);}'}));
   dome.renderOrder=-10;skyG.add(dome);
-  sunM=new THREE.Mesh(new THREE.SphereGeometry(11,12,8),new THREE.MeshBasicMaterial({color:0xfff4c0,fog:false}));skyG.add(sunM);
-  {const sp=[],sr=seeded(31);for(let i=0;i<350;i++){const a=sr()*6.283,e=.08+sr()*1.4;sp.push(Math.cos(a)*Math.cos(e)*370,Math.sin(e)*370,Math.sin(a)*Math.cos(e)*370)}
+  sunM=new THREE.Mesh(new THREE.SphereGeometry(12,16,12),new THREE.MeshBasicMaterial({color:0xfff4c0,fog:false}));skyG.add(sunM);
+  moonM=new THREE.Mesh(new THREE.SphereGeometry(7,12,10),new THREE.MeshBasicMaterial({color:0xdde6ff,fog:false,transparent:true,opacity:0}));moonM.visible=false;skyG.add(moonM);
+  {const sp=[],sr=seeded(31);for(let i=0;i<520;i++){const a=sr()*6.283,e=.05+sr()*1.45;sp.push(Math.cos(a)*Math.cos(e)*390,Math.sin(e)*390,Math.sin(a)*Math.cos(e)*390)}
    const sg=new THREE.BufferGeometry();sg.setAttribute('position',new THREE.Float32BufferAttribute(sp,3));
-   starM=new THREE.Points(sg,new THREE.PointsMaterial({color:0xffffff,size:1.6,sizeAttenuation:false,transparent:true,opacity:0,fog:false,depthWrite:false}));skyG.add(starM)}
+   starM=new THREE.Points(sg,new THREE.PointsMaterial({color:0xffffff,size:1.8,sizeAttenuation:false,transparent:true,opacity:0,fog:false,depthWrite:false}));skyG.add(starM)}
   scene.add(skyG);
-  cloudG=new THREE.Group();{const cm=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.82,fog:false,depthWrite:false}),cr=seeded(55);
-   for(let i=0;i<45;i++){const cx=(cr()-.5)*1700,cz=(cr()-.5)*1700,cy=120+cr()*50;for(let j=0;j<3;j++){const b=new THREE.Mesh(BOX,cm);b.scale.set(30+cr()*40,5+cr()*5,18+cr()*22);b.position.set(cx+(cr()-.5)*30,cy+j*2,cz+(cr()-.5)*20);cloudG.add(b)}}}
+  cloudG=new THREE.Group();{const cm=new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.78,fog:false,depthWrite:false}),cr=seeded(55);
+   for(let i=0;i<60;i++){const cx=(cr()-.5)*1900,cz=(cr()-.5)*1900,cy=110+cr()*70;for(let j=0;j<4;j++){const b=new THREE.Mesh(BOX,cm);b.scale.set(28+cr()*48,4+cr()*7,16+cr()*28);b.position.set(cx+(cr()-.5)*36,cy+j*2.2,cz+(cr()-.5)*24);cloudG.add(b)}}}
   cloudG.position.set(WM/2,0,WM/2);scene.add(cloudG);
   const wt=[0,1].map(v=>{
     const a=document.createElement('canvas'),b=document.createElement('canvas'),c2=document.createElement('canvas');a.width=a.height=b.width=b.height=c2.width=c2.height=64;
@@ -1151,9 +1156,13 @@ function buildScene(){
    const lh=new THREE.InstancedMesh(BOX,lampMat,lamps.length);lamps.forEach((p,i)=>lh.setMatrixAt(i,mt.compose(v1.set(p[0],5.3,p[1]),q0,v2.set(.8,.28,.8))));scene.add(lh);
    const gc=document.createElement('canvas');gc.width=gc.height=64;const gx=gc.getContext('2d'),gr=gx.createRadialGradient(32,32,0,32,32,32);gr.addColorStop(0,'rgba(255,225,150,1)');gr.addColorStop(.4,'rgba(255,205,120,.45)');gr.addColorStop(1,'rgba(255,190,100,0)');gx.fillStyle=gr;gx.fillRect(0,0,64,64);
    glowMat.map=new THREE.CanvasTexture(gc);
-   {const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:glowMat.map,blending:THREE.AdditiveBlending,fog:false,depthWrite:false,transparent:true}));sp.scale.set(110,110,1);sunM.add(sp)}
+   {const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:glowMat.map,blending:THREE.AdditiveBlending,fog:false,depthWrite:false,transparent:true}));sp.scale.set(150,150,1);sunM.add(sp)
+    const msp=new THREE.Sprite(new THREE.SpriteMaterial({map:glowMat.map,color:0xa8c8ff,blending:THREE.AdditiveBlending,fog:false,depthWrite:false,transparent:true,opacity:.55}));msp.scale.set(70,70,1);moonM.add(msp)}
    const gq=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),-PI/2),gm=new THREE.InstancedMesh(PLANE,glowMat,lamps.length);
-   lamps.forEach((p,i)=>gm.setMatrixAt(i,mt.compose(v1.set(p[0],.09,p[1]),gq,v2.set(13,13,1))));scene.add(gm)}
+   lamps.forEach((p,i)=>gm.setMatrixAt(i,mt.compose(v1.set(p[0],.09,p[1]),gq,v2.set(16,16,1))));scene.add(gm)}
+  {const bm=new THREE.MeshBasicMaterial({color:0xffe2a0,transparent:true,opacity:.14,depthWrite:false,side:THREE.DoubleSide,fog:false});
+   beamL=new THREE.Mesh(new THREE.ConeGeometry(1.2,18,10,1,true),bm);beamR=new THREE.Mesh(new THREE.ConeGeometry(1.2,18,10,1,true),bm.clone());
+   for(const b of[beamL,beamR]){b.rotation.x=-PI/2;b.position.y=1.05;b.visible=false;scene.add(b)}}
   {const sig=[];for(let j=0;j<=NB;j++)for(let i=0;i<=NB;i++)if(nodeOn(i,j)&&deg(i,j)>2)for(const a of[0,1])for(const b of[0,1])sig.push([(i*P+(a?2:-1))*4+(a?.6:3.4),(j*P+(b?2:-1))*4+(b?.6:3.4)]);
    if(sig.length){const ns=new THREE.InstancedMesh(BOX,ltNS,sig.length),ew=new THREE.InstancedMesh(BOX,ltEW,sig.length);
     sig.forEach((p,i)=>{ns.setMatrixAt(i,mt.compose(v1.set(p[0],3.9,p[1]),q0,v2.set(1.1,.45,.32)));ew.setMatrixAt(i,mt.compose(v1.set(p[0],3.9,p[1]),q0,v2.set(.32,.45,1.1)))});scene.add(ns,ew)}}
@@ -1173,8 +1182,8 @@ function buildScene(){
   marker(VINNY,0xff4ad8,'VINNY').add(box(.7,1.3,.7,'#ff4ad8',0,.2,0,true),box(.9,.25,.9,'#1a1a22',0,1,0,true));
   marker(RACE,0xff9a2a,'RACE').add(box(1.5,.28,1.5,'#ff9a2a',0,0,0,true),box(.35,.9,.35,'#fff',-.4,.5,0,true),box(.35,.9,.35,'#111',.4,.5,0,true));
   turfM=TURFS.map(t=>{const mat=new THREE.MeshBasicMaterial({color:GANGS[t.g].c,transparent:true,opacity:.28,depthWrite:false,side:THREE.DoubleSide});const ring=new THREE.Mesh(new THREE.RingGeometry(t.r*SC*.86,t.r*SC,28),mat);ring.rotation.x=-PI/2;ring.position.set(t.x*SC,.25,t.y*SC);scene.add(ring);const flag=marker(t,parseInt(GANGS[t.g].c.slice(1),16),GANGS[t.g].n);flag.add(box(.4,1.4,.4,GANGS[t.g].shirt,0,.3,0,true));return ring});
-  {const rp=[];for(let i=0;i<1500;i++)rp.push((R()-.5)*70,R()*40,(R()-.5)*70);const rg=new THREE.BufferGeometry();rg.setAttribute('position',new THREE.Float32BufferAttribute(rp,3));
-   rainM=new THREE.Points(rg,new THREE.PointsMaterial({color:0xb8d4ff,size:2,sizeAttenuation:false,transparent:true,opacity:0,depthWrite:false,fog:false}));rainM.frustumCulled=false;rainM.visible=false;scene.add(rainM)}
+  {const rp=[];for(let i=0;i<2800;i++)rp.push((R()-.5)*90,R()*48,(R()-.5)*90);const rg=new THREE.BufferGeometry();rg.setAttribute('position',new THREE.Float32BufferAttribute(rp,3));
+   rainM=new THREE.Points(rg,new THREE.PointsMaterial({color:0xc5dcff,size:2.4,sizeAttenuation:false,transparent:true,opacity:0,depthWrite:false,fog:false}));rainM.frustumCulled=false;rainM.visible=false;scene.add(rainM)}
   {const lam=[],ao=[],neo=new Map();
    for(const ch of scene.children.slice()){
      if(!ch.isMesh||ch.isInstancedMesh)continue;
@@ -1313,43 +1322,56 @@ function render3D(dt){
   if(pFig.visible)pFig.position.y+=(p.alt||0)+p.jy;
   for(const ic of icons){ic.rotation.y=now*2;ic.position.y=4+Math.sin(now*2)*.4}
   const h=S.time/60,nf=h<5?1:h<7?(7-h)/2:h<18?0:h<21?(h-18)/3:1,ev=1-Math.abs(nf-.5)*2;
-  sky.copy(SKY_D).lerp(SKY_N,nf).lerp(SKY_E,ev*.55).lerp(RAINC,S.rain*.6*(1-nf*.7));scene.background=sky;scene.fog.color.copy(sky);
-  skyU.bot.value.copy(sky);skyU.top.value.copy(TOP_D).lerp(TOP_N,nf).lerp(TOP_E,ev*.75);
-  for(const m of NEON)m.color.setHex(m.userData.c).multiplyScalar(HDR?.5+nf*2:.6+nf*.4);
-  const night=nf>.6,sa=clamp((h-6)/12,0,1)*PI;
-  if(night)sdir.set(.4,.8,.3).normalize();else sdir.set(Math.cos(sa)*.9,Math.sin(sa)*.85+.14,.35).normalize();
-  hemi.intensity=.8-.5*nf;sun.intensity=night?.22:.9*(1-nf)+.05;sun.color.setHex(night?0x9fb4ff:0xfff2d8);
-  sunM.position.copy(sdir).multiplyScalar(345);sunM.material.color.setHex(night?0xdfe6ff:0xfff4c0);if(HDR)sunM.material.color.multiplyScalar(night?1.6:3.5);sunM.scale.setScalar(night?.6:1);
-  starM.material.opacity=nf;cloudG.position.x=WM/2+(now*1.2)%300-150;cloudG.children[0].material.opacity=.82-.6*nf;
-  waterMat.uniforms.t.value=now;waterMat.uniforms.lit.value=1-.72*nf;waterMat.uniforms.fogC.value.copy(sky);waterMat.uniforms.skyC.value.copy(sky);waterMat.uniforms.sunD.value.copy(sdir);
-  lampMat.color.setHex(nf>.25?0xffe9a0:0x9a9aa0);if(HDR&&nf>.25)lampMat.color.multiplyScalar(2.2);glowMat.opacity=nf*.5;
-  for(const k in mats){const m=mats[k];if(k[0]==='B'){m.emissiveIntensity=nf*(HDR?1.7:1);m.reflectivity=.55*(1-nf*.75)}else if(k[k.length-1]==='p')m.reflectivity=.26*(1-nf*.6)}
+  sky.copy(SKY_D).lerp(SKY_N,nf).lerp(SKY_E,ev*.62).lerp(RAINC,S.rain*.55*(1-nf*.65));scene.background=sky;scene.fog.color.copy(sky);scene.fog.density=.0021+.0011*S.rain+.0007*nf;
+  skyU.bot.value.copy(sky);skyU.top.value.copy(TOP_D).lerp(TOP_N,nf).lerp(TOP_E,ev*.8);skyU.mid.value.copy(MID_D).lerp(MID_N,nf).lerp(MID_E,ev*.85);skyU.night.value=nf;
+  for(const m of NEON)m.color.setHex(m.userData.c).multiplyScalar(HDR?.55+nf*2.4:.65+nf*.55);
+  const night=nf>.55,sa=clamp((h-6)/12,0,1)*PI;
+  if(night)sdir.set(.35,.78,.28).normalize();else sdir.set(Math.cos(sa)*.92,Math.sin(sa)*.88+.12,.32).normalize();
+  skyU.sunD.value.copy(sdir);
+  hemi.intensity=.95-.55*nf;hemi.color.setHex(night?0xb8c8ff:0xffffff);hemi.groundColor.setHex(night?0x1a1528:0x556070);
+  sun.intensity=night?.18:1.05*(1-nf)+.08;sun.color.setHex(night?0x9fb4ff:ev>.4?0xffc8a0:0xfff4dc);
+  fill.intensity=.12+.2*nf;fill.color.setHex(night?0xff4ad8:0xa8d0ff);
+  sunM.position.copy(sdir).multiplyScalar(360);sunM.material.color.setHex(night?0xdfe6ff:0xfff1b0);if(HDR)sunM.material.color.multiplyScalar(night?1.7:4.2);sunM.scale.setScalar(night?.55:1+(1-nf)*.15);sunM.visible=!night||nf<.85;
+  if(moonM){moonM.visible=nf>.25;moonM.position.set(-sdir.x,-sdir.y*.2,-sdir.z).normalize().multiplyScalar(340);moonM.material.opacity=nf;moonM.scale.setScalar(.8+nf*.4)}
+  starM.material.opacity=nf*.95;cloudG.position.x=WM/2+(now*1.35)%340-170;cloudG.children[0].material.opacity=.8-.55*nf-.25*S.rain;cloudG.children[0].material.color.setHex(nf>.5?0x8a96b0:S.rain>.3?0x9aa6b4:0xffffff);
+  waterMat.uniforms.t.value=now;waterMat.uniforms.lit.value=1-.68*nf;waterMat.uniforms.rain.value=S.rain;waterMat.uniforms.fogC.value.copy(sky);waterMat.uniforms.skyC.value.copy(sky);waterMat.uniforms.sunD.value.copy(sdir);
+  lampMat.color.setHex(nf>.2?0xffe2a8:0x9a9aa0);if(HDR&&nf>.2)lampMat.color.multiplyScalar(2.6);glowMat.opacity=nf*.62;
+  if(groundMat){groundMat.shininess=8+S.rain*70;groundMat.specular.setHex(S.rain>.15?0x8899aa:0x222222)}
+  if(wetPlane){wetPlane.visible=S.rain>.08;wetPlane.material.opacity=clamp(S.rain*.42,0,.38);wetPlane.material.reflectivity=.4+S.rain*.25}
+  for(const k in mats){const m=mats[k];if(k[0]==='B'){m.emissiveIntensity=nf*(HDR?2.1:1.15);m.reflectivity=.62*(1-nf*.7)}else if(k[k.length-1]==='p'){m.reflectivity=.4*(1-nf*.45)+S.rain*.12;m.shininess=140+S.rain*40}}
+  const spd=p.car?Math.hypot(p.car.vx,p.car.vy):0;
   if(mode==='title'){
-    const a=now*.06;camPos.set(START.x*SC+Math.cos(a)*190,95,START.y*SC+Math.sin(a)*190);camera.position.copy(camPos);camera.lookAt(START.x*SC,12,START.y*SC);headL.intensity=0;
+    const a=now*.06;camPos.set(START.x*SC+Math.cos(a)*190,95,START.y*SC+Math.sin(a)*190);camera.position.copy(camPos);camera.lookAt(START.x*SC,12,START.y*SC);headL.intensity=0;if(beamL)beamL.visible=beamR.visible=false;cityL.intensity=0;
   }else{
     const c=p.car;
-    if(c){if(freeLook>0)freeLook-=dt;else if(Math.hypot(c.vx,c.vy)>8)camA+=angDiff(c.a,camA)*Math.min(1,dt*3.2)}
+    if(c){if(freeLook>0)freeLook-=dt;else if(spd>8)camA+=angDiff(c.a,camA)*Math.min(1,dt*3.2)}
     const ds=c?(c.type==='heli'?15:10):(p.aim?2.6:5.2),tx=p.x*SC,tz=p.y*SC,ty=c?2+(c.alt||0):p.swim?.9:1.75+(p.alt||0)+p.jy,cp=Math.cos(camP),dx=-Math.cos(camA)*cp*ds,dz=-Math.sin(camA)*cp*ds,dy=Math.sin(camP)*ds;
     let t=1;for(let i=1;i<=12;i++){const k=i/12;if(blockH((tx+dx*k)/SC,(tz+dz*k)/SC)>ty+dy*k){t=Math.max(.1,(i-1)/12);break}}
-    {const tf=p.aim&&!c?(p.wep===5?17:44):62+(c?Math.min(18,Math.hypot(c.vx,c.vy)*.08):0);if(Math.abs(camera.fov-tf)>.1){camera.fov+=(tf-camera.fov)*Math.min(1,dt*8);camera.updateProjectionMatrix()}}
+    {const tf=p.aim&&!c?(p.wep===5?17:44):62+(c?Math.min(20,spd*.09):0);if(Math.abs(camera.fov-tf)>.1){camera.fov+=(tf-camera.fov)*Math.min(1,dt*8);camera.updateProjectionMatrix()}}
     const ax=p.aim?-Math.sin(camA)*.75:0,az=p.aim?Math.cos(camA)*.75:0;
     v3.set(tx+dx*t+ax,ty+dy*t,tz+dz*t+az);camPos.lerp(v3,Math.min(1,dt*14));camera.position.copy(camPos);
     if(S.shake>0){camera.position.x+=(R()-.5)*S.shake*2;camera.position.y+=(R()-.5)*S.shake*2}
     camera.lookAt(tx+ax+Math.cos(camA)*(p.aim?8:1.5),ty+(p.aim?.2:0),tz+az+Math.sin(camA)*(p.aim?8:1.5));
-    if(c&&nf>0){headL.intensity=nf*2.4;headL.position.set(tx+Math.cos(c.a)*2,1.3,tz+Math.sin(c.a)*2);headL.target.position.set(tx+Math.cos(c.a)*30,0,tz+Math.sin(c.a)*30)}else headL.intensity=0;
+    const lightsOn=c&&nf>.25&&c.type!=='boat';
+    if(lightsOn){const ca=Math.cos(c.a),sa2=Math.sin(c.a);headL.intensity=nf*3.2+S.rain*.4;headL.position.set(tx+ca*2.2,1.25+(c.alt||0),tz+sa2*2.2);headL.target.position.set(tx+ca*34,0,tz+sa2*34);
+      if(beamL){const side=Math.sin(c.a)*.55,fwd=Math.cos(c.a)*.55;for(const[b,s]of[[beamL,1],[beamR,-1]]){b.visible=true;b.position.set(tx+ca*2.6-sa2*s*.7,1.1+(c.alt||0),tz+sa2*2.6+ca*s*.7);b.rotation.y=-c.a;b.material.opacity=.1+nf*.12}}}
+    else{headL.intensity=0;if(beamL)beamL.visible=beamR.visible=false}
+    cityL.intensity=nf*1.4;cityL.position.set(tx,18,tz);cityL.color.setHex((now*1.3|0)%2?0xff4ad8:0x3fe0ff);
   }
-  {const fx=mode==='title'?START.x*SC:p.x*SC,fz=mode==='title'?START.y*SC:p.y*SC;sun.target.position.set(fx,0,fz);sun.position.set(fx+sdir.x*160,sdir.y*160,fz+sdir.z*160);skyG.position.copy(camera.position)}
-  if(S.rain>.02){rainM.visible=true;rainM.material.opacity=S.rain*.6;const at=rainM.geometry.attributes.position,ar=at.array;for(let i=1;i<ar.length;i+=3){ar[i]-=dt*40;if(ar[i]<0)ar[i]+=40}at.needsUpdate=true;rainM.position.set(camera.position.x,0,camera.position.z)}else rainM.visible=false;
+  {const fx=mode==='title'?START.x*SC:p.x*SC,fz=mode==='title'?START.y*SC:p.y*SC;sun.target.position.set(fx,0,fz);sun.position.set(fx+sdir.x*170,sdir.y*170,fz+sdir.z*170);skyG.position.copy(camera.position)}
+  if(S.rain>.02){rainM.visible=true;rainM.material.opacity=S.rain*.72;const at=rainM.geometry.attributes.position,ar=at.array,fall=38+S.rain*22;for(let i=1;i<ar.length;i+=3){ar[i]-=dt*fall;if(ar[i]<0){ar[i]+=48;ar[i-1]=(R()-.5)*90;ar[i+1]=(R()-.5)*90}}at.needsUpdate=true;rainM.position.set(camera.position.x,0,camera.position.z)}else rainM.visible=false;
   if(PR.off)renderer.render(scene,camera);
   else{
     const cw=renderer.domElement.width,ch=renderer.domElement.height;if(PR.w!==cw||PR.h!==ch)mkPost(cw,ch);
     renderer.setRenderTarget(PR.main);renderer.render(scene,camera);
     const bu=PR.blur.uniforms;pQuad.material=PR.blur;
-    bu.t.value=PR.main.texture;bu.dir.value.set(1,0);bu.thr.value=HDR?1.35:.9;renderer.setRenderTarget(PR.b1);renderer.render(pScene,pCam);
+    bu.t.value=PR.main.texture;bu.dir.value.set(1,0);bu.thr.value=HDR?(night?1.05:1.4):(night?.75:1);renderer.setRenderTarget(PR.b1);renderer.render(pScene,pCam);
     bu.t.value=PR.b1.texture;bu.dir.value.set(0,1);bu.thr.value=0;renderer.setRenderTarget(PR.b2);renderer.render(pScene,pCam);
-    bu.t.value=PR.b2.texture;bu.dir.value.set(2.2,0);renderer.setRenderTarget(PR.b1);renderer.render(pScene,pCam);
-    bu.t.value=PR.b1.texture;bu.dir.value.set(0,2.2);renderer.setRenderTarget(PR.b2);renderer.render(pScene,pCam);
-    pQuad.material=PR.fin;PR.fin.uniforms.t.value=PR.main.texture;PR.fin.uniforms.b.value=PR.b2.texture;PR.fin.uniforms.time.value=now%100;
+    bu.t.value=PR.b2.texture;bu.dir.value.set(2.4,0);renderer.setRenderTarget(PR.b1);renderer.render(pScene,pCam);
+    bu.t.value=PR.b1.texture;bu.dir.value.set(0,2.4);renderer.setRenderTarget(PR.b2);renderer.render(pScene,pCam);
+    pQuad.material=PR.fin;const fu=PR.fin.uniforms;fu.t.value=PR.main.texture;fu.b.value=PR.b2.texture;fu.time.value=now%100;fu.rain.value=S.rain;fu.night.value=nf;fu.speed.value=clamp(spd/180,0,1);fu.bloom.value=.78+nf*.55+S.rain*.15;
+    PR.grade.setRGB(1+.08*ev-.04*nf,1-.03*nf+.02*S.rain,1+.06*nf-.05*ev);fu.grade.value=PR.grade;
+    v3.copy(sunM.position).add(camera.position).project(camera);PR.sunUV.set(v3.z>1?-1:(v3.x+1)*.5,(v3.y+1)*.5);fu.sunUV.value=PR.sunUV;
     renderer.setRenderTarget(null);renderer.render(pScene,pCam);
   }
 }
